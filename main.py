@@ -45,7 +45,7 @@ def test_response(r, context):
     if phrase in r.text:
         log.debug(f"Ok but no rdv dispo ({r.url})")  # , r.text)
     else:
-        # log.info(r.text)
+        log.critical(r.text)
         make_mail(r.url, context)
         # make_notif(r.url, context)
 
