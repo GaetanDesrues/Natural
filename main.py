@@ -35,7 +35,7 @@ def make_request(node, data):
 
 def test_response(r, context):
     if r is None:
-        log.error(f"Internal python error")
+        # log.error(f"Internal python error")
         return
 
     if r.status_code == 502:
