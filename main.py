@@ -47,7 +47,7 @@ def test_response(r, context):
     else:
         # log.info(r.text)
         make_mail(r.url, context)
-        make_notif(r.url, context)
+        # make_notif(r.url, context)
 
 
 def make_mail(url, context):
