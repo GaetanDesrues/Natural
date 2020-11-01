@@ -29,8 +29,8 @@ def make_request(node, data):
     try:
         # log.info(URL.format(node))
         return requests.post(URL.format(node), headers=headers, data=data)
-    except Exception as e:
-        log.error(f"Error for {URL.format(node)!r}", e)
+    except requests.exceptions.ConnectionError as e:
+        log.error(f"ConnectionError for {URL.format(node)!r}")
 
 
 def test_response(r, context):
@@ -40,7 +40,6 @@ def test_response(r, context):
 
     if r.status_code == 502:
         log.error(f"Error 502: {r.url}")
-        make_notif(r.url, "ERROR 502")
         return
 
     if phrase in r.text:
