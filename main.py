@@ -42,8 +42,13 @@ def test_response(r, context):
         log.error(f"Error 502: {r.url}")
         return
 
-    if phrase in r.text:
+    elif r.status_code == 503:
+        log.error(f"Error 503: {r.url}")
+        return
+
+    elif phrase in r.text:
         log.debug(f"Ok but no rdv dispo ({r.url})")  # , r.text)
+
     else:
         log.critical(r.text)
         make_mail(r.url, context)
@@ -72,7 +77,7 @@ def make_mail(url, context):
 
 
 def make_notif(url, context):
-    title = "Bonne nouvelle: un guichet semble libre"
+    title = f"{context}: un guichet semble libre"
     msg = f"Un guichet semble etre disponible en {context}"
 
     r = send_notif(title, msg)
