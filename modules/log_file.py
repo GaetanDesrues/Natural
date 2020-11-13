@@ -12,7 +12,7 @@ class CustomFormatter(logging.Formatter):
     reset = "\x1b[0m"
     # fmt = "[ {}%(levelname)s{} ]\t[\x1b[;3m%(name)s (%(funcName)s)\x1b[0m] %(message)s"  # \t(%(funcName)s:%(filename)s:l.%(lineno)d)"
     fmt = "{}[%(levelname)s]{}\t[{origin}] %(message)s"
-    pfmt = "\t --> From: file://%(pathname)s:%(lineno)s"
+    # pfmt = "\t --> From: file://%(pathname)s:%(lineno)s"
     origin = "\x1b[;3m%(name)s (%(funcName)s)\x1b[0m"
 
     FORMATS = {
@@ -28,26 +28,30 @@ class CustomFormatter(logging.Formatter):
         fmt = self.fmt
         if "__main__" in record.name:
             ori = "\x1b[;3mCore\x1b[0m"
-        else:
-            fmt += self.pfmt
+        # else:
+        # fmt += self.pfmt
         log_fmt = fmt.format(self.FORMATS.get(record.levelno), self.reset, origin=ori)
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
+
 
 FORMATTER = CustomFormatter()
 FORMATTER_FILE = logging.Formatter(
     "%(asctime)s [ %(levelname)s ]\t %(message)s"  # \t(%(funcName)s:%(filename)s:l.%(lineno)d)"
 )
 
+
 def get_console_handler():
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(FORMATTER)
     return console_handler
 
+
 def get_file_handler():
     file_handler = RotatingFileHandler(LOG_FILE, backupCount=1, maxBytes=1e5)
     file_handler.setFormatter(FORMATTER_FILE)
     return file_handler
+
 
 def getLog(logger_name, level=LOG_LEVEL, file=True, console=True, name_is_file=False):
     if name_is_file:

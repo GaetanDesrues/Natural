@@ -1,6 +1,6 @@
 from pyfcm import FCMNotification
-from db import get_tokens
-from constants import API_KEY
+from .db import get_tokens
+from .constants import API_KEY
 
 
 def send_notif(message_title, message_body):
