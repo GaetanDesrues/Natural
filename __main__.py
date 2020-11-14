@@ -36,11 +36,25 @@ if __name__ == "__main__":
         make_mail(infos, dtype.name)
         # make_notif(infos, dtype)
 
-        status = dict(res=True, date=now(), reason=infos["label"], name=dtype.name)
+        status = dict(
+            res=True,
+            date=now(),
+            reason=infos["label"],
+            name=dtype.name,
+            node=dtype.node,
+            planning=infos["value"],
+        )
         add_guichet(f"{dtype.node}_{infos['value']}", status=status)
 
     def on_failure(dtype, infos, reason):
-        status = dict(res=False, date=now(), reason=str(reason), name=dtype.name)
+        status = dict(
+            res=False,
+            date=now(),
+            reason=str(reason),
+            name=dtype.name,
+            node=dtype.node,
+            planning=infos["value"],
+        )
         add_guichet(f"{dtype.node}_{infos['value']}", status=status)
 
     pp = GouvParser(on_success=on_success, on_failure=on_failure)

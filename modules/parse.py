@@ -15,6 +15,8 @@ DEBUG = 0
 
 class BRes:
     BASE_URL = "https://www.haute-garonne.gouv.fr/booking/create/{node}/{page}"
+    title = "Vérification de disponibilité"
+    msg = "Il n'existe plus de plage horaire libre pour votre demande de rendez-vous. Veuillez recommencer ultérieurement."
 
     def __init__(self, name, node):
         self.name, self.node = name, node
@@ -24,9 +26,6 @@ class BRes:
 
 
 RES = BRes("Reservation", 7736)
-RES.title = "Vérification de disponibilité"
-RES.msg = "Il n'existe plus de plage horaire libre pour votre demande de rendez-vous. Veuillez recommencer ultérieurement."
-
 SRES = BRes("Sur Reservation", 18131)
 
 
@@ -36,9 +35,13 @@ class GouvParser:
         self.on_failure = on_failure
 
         self.parse_guichets()
+        self.parse_surreservation()
 
         for infos in self.infos_guichets:
             self.parse_page_guichet(infos)
+
+        for infos in self.infos_surreservation:
+            self.parse_page_surreservation(infos)
 
     @continuous_error
     def parse_guichets(self):
@@ -52,6 +55,23 @@ class GouvParser:
                 dict(
                     value=line.find("input").get("value"),
                     label=decode(line.find("label").text),
+                )
+            )
+
+    @continuous_error
+    def parse_surreservation(self):
+        self.infos_surreservation = []
+        soup = safe_get_soup(
+            "No surreservation right now", SRES.get(1), "_surreservation"
+        )
+
+        lines = soup.findAll("p", {"class": "Bligne"})
+
+        for line in lines:
+            self.infos_surreservation.append(
+                dict(
+                    value=line.find("input").get("value"),
+                    label="Guichet unique",  # decode(line.find("label").text)
                 )
             )
 
@@ -79,6 +99,31 @@ class GouvParser:
         else:
             log.info(f"{label} -- Found one!")
             self.on_success(RES, infos)
+
+    @continuous_error
+    def parse_page_surreservation(self, infos):
+        value, label = infos.get("value"), infos.get("label")
+
+        try:
+            soup = safe_get_soup(
+                label,
+                SRES.get(1),
+                f"_surreservation_{value}",
+                data={"planning": value, "nextButton": "Etape+suivante"},
+            )
+        except Exception as e:
+            self.on_failure(RES, infos, e)
+            raise e
+
+        title = decode(soup.find(id="inner_Booking").find("h2").text)
+        msg = decode(soup.find(id="FormBookingCreate").text)
+
+        if title == SRES.title and msg == SRES.msg:
+            log.warning(f"{label} -- Checked but nope")
+            self.on_failure(SRES, infos, f"{label} -- Checked but nope")
+        else:
+            log.info(f"{label} -- Found one!")
+            self.on_success(SRES, infos)
 
 
 def safe_get_soup(label, url, n, data=None):
