@@ -5,14 +5,12 @@ from logging.handlers import RotatingFileHandler
 LOG_FILE = os.path.join(tempfile.gettempdir(), "Natur.log")
 LOG_LEVEL = logging.DEBUG
 
-### Logging
+
 class CustomFormatter(logging.Formatter):
     """See https://gist.github.com/abritinthebay/d80eb99b2726c83feb0d97eab95206c4"""
 
     reset = "\x1b[0m"
-    # fmt = "[ {}%(levelname)s{} ]\t[\x1b[;3m%(name)s (%(funcName)s)\x1b[0m] %(message)s"  # \t(%(funcName)s:%(filename)s:l.%(lineno)d)"
     fmt = "{}[%(levelname)s]{}\t[{origin}] %(message)s"
-    # pfmt = "\t --> From: file://%(pathname)s:%(lineno)s"
     origin = "\x1b[;3m%(name)s (%(funcName)s)\x1b[0m"
 
     FORMATS = {
@@ -28,17 +26,13 @@ class CustomFormatter(logging.Formatter):
         fmt = self.fmt
         if "__main__" in record.name:
             ori = "\x1b[;3mCore\x1b[0m"
-        # else:
-        # fmt += self.pfmt
         log_fmt = fmt.format(self.FORMATS.get(record.levelno), self.reset, origin=ori)
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
 
 FORMATTER = CustomFormatter()
-FORMATTER_FILE = logging.Formatter(
-    "%(asctime)s [ %(levelname)s ]\t %(message)s"  # \t(%(funcName)s:%(filename)s:l.%(lineno)d)"
-)
+FORMATTER_FILE = logging.Formatter("%(asctime)s [ %(levelname)s ]\t %(message)s")
 
 
 def get_console_handler():

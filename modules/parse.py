@@ -1,153 +1,93 @@
-import requests
 from bs4 import BeautifulSoup
 
+from modules.db import now, add_guichet, get_last_valid
+from modules.guichet import RES, SRES, Guichet
 from modules.log_file import getLog
-from modules.utils import (
-    make_request,
-    BadGateway502,
-    NoneSoup,
+from modules.utils import make_request, make_notif
+from modules.errors import (
     continuous_error,
     HttpError,
+    checkError,
 )
 
-DEBUG = 0
+
+def on_success(guichet):
+    guichet.update(dict(res=True, last_valid=now(), date=now(), reason="Found one!"))
+    make_notif(guichet)
+    add_guichet(guichet)
 
 
-class BRes:
-    BASE_URL = "https://www.haute-garonne.gouv.fr/booking/create/{node}/{page}"
-    title = "Vérification de disponibilité"
-    msg = "Il n'existe plus de plage horaire libre pour votre demande de rendez-vous. Veuillez recommencer ultérieurement."
-
-    def __init__(self, name, node):
-        self.name, self.node = name, node
-
-    def get(self, p):
-        return BRes.BASE_URL.format(node=self.node, page=p)
-
-
-RES = BRes("Reservation", 7736)
-SRES = BRes("Sur Reservation", 18131)
+def on_failure(guichet, reason):
+    if isinstance(reason, HttpError):
+        reason = "Server Error"
+    guichet.update(dict(res=False, date=now(), reason=str(reason)))
+    add_guichet(guichet)
 
 
 class GouvParser:
-    def __init__(self, on_success, on_failure):
-        self.on_success = on_success
-        self.on_failure = on_failure
-
+    def __init__(self):
         self.parse_guichets()
-        self.parse_surreservation()
 
-        for infos in self.infos_guichets:
-            self.parse_page_guichet(infos)
-
-        for infos in self.infos_surreservation:
-            self.parse_page_surreservation(infos)
+        for guichet in self.guichets:
+            self.parse_page_guichet(guichet)
 
     @continuous_error
     def parse_guichets(self):
-        self.infos_guichets = []
-        soup = safe_get_soup("No guichets right now", RES.get(1), "_guichets")
+        self.guichets, label, soup = [], None, None
+        last_valids = get_last_valid()
 
-        lines = soup.findAll("p", {"class": "Bligne"})
+        for dtype in [RES, SRES]:
+            try:
+                soup = safe_get_soup(dtype.get(1))
+            except Exception as e:
+                checkError(e, "No guichets")
+            lines = soup.findAll("p", {"class": "Bligne"})
 
-        for line in lines:
-            self.infos_guichets.append(
-                dict(
-                    value=line.find("input").get("value"),
-                    label=decode(line.find("label").text),
+            label = "Guichet unique" if dtype is SRES else None
+            for line in lines:
+                if dtype is RES:
+                    label = decode(line.find("label").text)
+
+                g = Guichet(
+                    dtype=dtype, planning=line.find("input").get("value"), label=label,
                 )
-            )
+                if last_valids is not None:
+                    g.update(dict(last_valid=last_valids[f"{g.node}_{g.planning}"]))
+                self.guichets.append(g)
 
     @continuous_error
-    def parse_surreservation(self):
-        self.infos_surreservation = []
-        soup = safe_get_soup(
-            "No surreservation right now", SRES.get(1), "_surreservation"
-        )
-
-        lines = soup.findAll("p", {"class": "Bligne"})
-
-        for line in lines:
-            self.infos_surreservation.append(
-                dict(
-                    value=line.find("input").get("value"),
-                    label="Guichet unique",  # decode(line.find("label").text)
-                )
-            )
-
-    @continuous_error
-    def parse_page_guichet(self, infos):
-        value, label = infos.get("value"), infos.get("label")
-
+    def parse_page_guichet(self, guichet):
+        planning, label = guichet.planning, guichet.label
+        soup = None
         try:
             soup = safe_get_soup(
-                label,
-                RES.get(1),
-                f"_guichet_{value}",
-                data={"planning": value, "nextButton": "Etape+suivante"},
+                guichet.url,
+                data={"planning": planning, "nextButton": "Etape+suivante"},
             )
         except Exception as e:
-            self.on_failure(RES, infos, e)
-            raise e
+            on_failure(guichet, e)
+            checkError(e, guichet.label)
 
         title = decode(soup.find(id="inner_Booking").find("h2").text)
         msg = decode(soup.find(id="FormBookingCreate").text)
 
         if title == RES.title and msg == RES.msg:
-            log.warning(f"{label} -- Checked but nope")
-            self.on_failure(RES, infos, f"{label} -- Checked but nope")
+            log.warning(f"{label}: Checked but nope")
+            on_failure(guichet, "Checked but nope")
         else:
-            log.info(f"{label} -- Found one!")
-            self.on_success(RES, infos)
-
-    @continuous_error
-    def parse_page_surreservation(self, infos):
-        value, label = infos.get("value"), infos.get("label")
-
-        try:
-            soup = safe_get_soup(
-                label,
-                SRES.get(1),
-                f"_surreservation_{value}",
-                data={"planning": value, "nextButton": "Etape+suivante"},
-            )
-        except Exception as e:
-            self.on_failure(RES, infos, e)
-            raise e
-
-        title = decode(soup.find(id="inner_Booking").find("h2").text)
-        msg = decode(soup.find(id="FormBookingCreate").text)
-
-        if title == SRES.title and msg == SRES.msg:
-            log.warning(f"{label} -- Checked but nope")
-            self.on_failure(SRES, infos, f"{label} -- Checked but nope")
-        else:
-            log.info(f"{label} -- Found one!")
-            self.on_success(SRES, infos)
+            log.info(f"{label}: Found one!")
+            on_success(guichet)
 
 
-def safe_get_soup(label, url, n, data=None):
-    r = make_request(url, data, label=label)
+def safe_get_soup(url, data=None):
+    r = make_request(url, data)
 
     soup = BeautifulSoup(r.text, "lxml")
 
-    if soup is None:
-        raise NoneSoup(label)
-
     if r.status_code != 200:
-        raise HttpError(f"{r.status_code} {r.reason}", label)
+        raise HttpError(f"{r.status_code} {r.reason}")
 
     return soup
-
-
-# def get_page(url, n, data=None, download=not DEBUG):
-#     # if download:
-#     req = make_request(url, data)
-#     # with open(f"data/page{n}.html", "w") as f:
-#     #     f.write(req.text)
-#     # with open(f"data/page{n}.html", "r") as f:
-#     #     te = f.read()
-#     return req
 
 
 def decode(html):
@@ -155,10 +95,3 @@ def decode(html):
 
 
 log = getLog(__name__)
-
-# if __name__ == "__main__":
-#
-#     def on_success(dtype, infos):
-#         print(f"{dtype}: {infos}")
-#
-#     pp = GouvParser(on_success=on_success)
