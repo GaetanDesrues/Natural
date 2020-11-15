@@ -1,5 +1,4 @@
 from bs4 import BeautifulSoup
-
 from modules.db import now, add_guichet, get_last_valid
 from modules.guichet import RES, SRES, Guichet
 from modules.log_file import getLog
