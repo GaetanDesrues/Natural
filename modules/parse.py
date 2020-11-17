@@ -75,6 +75,8 @@ class GouvParser:
             on_failure(guichet, "Checked but nope")
         else:
             log.info(f"{label}: Found one!")
+            log.info(f"title: {title}")
+            log.info(f"msg: {msg}")
             on_success(guichet)
 
 
