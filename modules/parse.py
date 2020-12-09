@@ -13,7 +13,7 @@ from modules.errors import (
 def on_success(guichet):
     guichet.update(dict(res=True, last_valid=now(), date=now(), reason="Found one!"))
     make_notif(guichet)
-    # add_guichet(guichet)    ##### DEBUG
+    add_guichet(guichet)
 
 
 def on_failure(guichet, reason):
@@ -73,7 +73,6 @@ class GouvParser:
         if title == RES.title and msg == RES.msg:
             log.warning(f"{label}: Checked but nope")
             on_failure(guichet, "Checked but nope")
-            on_success(guichet)  ####### DEBUG
         else:
             log.info(f"{label}: Found one!")
             log.info(f"title: {title}")
