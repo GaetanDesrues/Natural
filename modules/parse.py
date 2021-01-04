@@ -35,7 +35,7 @@ class GouvParser:
         self.guichets, label, soup = [], None, None
         last_valids = get_last_valid()
 
-        for dtype in [RES, SRES]:
+        for dtype in [RES]:  # , SRES]:
             try:
                 soup = safe_get_soup(dtype.get(1))
             except Exception as e:
@@ -51,7 +51,9 @@ class GouvParser:
                     dtype=dtype, planning=line.find("input").get("value"), label=label,
                 )
                 if last_valids is not None:
-                    g.update(dict(last_valid=last_valids[f"{g.node}_{g.planning}"]))
+                    key = f"{g.node}_{g.planning}"
+                    if key in last_valids:
+                        g.update(dict(last_valid=last_valids[key]))
                 self.guichets.append(g)
 
     @continuous_error
